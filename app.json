@@ -9,11 +9,13 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.homerelay.app",
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "Home Relay connects to your PC agent over your local network to view and control its screen."
       }
     },
     "android": {
+      "package": "com.homerelay.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
