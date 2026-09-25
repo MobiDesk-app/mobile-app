@@ -49,6 +49,13 @@ export class WebRtcSession extends MiniEmitter<WebRtcSessionEvents> {
     this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     this.inputChannel = this.pc.createDataChannel("input");
     this.filesChannel = this.pc.createDataChannel("files");
+    // Unified Plan only puts an m-line in the offer for transceivers that
+    // actually exist — without this, the offer has no m=video section at
+    // all, so the agent has nothing to attach its screen-share track to
+    // even though it tries (found by testing the web app against the real
+    // agent: ICE connected, but ontrack never fired — same bug would have
+    // hit here too).
+    this.pc.addTransceiver("video", { direction: "recvonly" });
 
     (this.pc as RtcAny).addEventListener("icecandidate", (event: RtcAny) => {
       if (!event.candidate) return;
