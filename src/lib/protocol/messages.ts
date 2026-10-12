@@ -26,7 +26,7 @@ export const serverMessageSchema = z.discriminatedUnion("type", [
 export type ServerMessage = z.infer<typeof serverMessageSchema>;
 
 export type AppMessage =
-  | { type: "auth"; token: string; deviceId: string; role: "app"; name: string }
+  | { type: "auth"; role: "app"; sessionToken: string }
   | { type: "get_devices" }
   | { type: "signal"; target: string; payload: unknown }
   | { type: "ping" };

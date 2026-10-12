@@ -132,7 +132,7 @@ in plain Expo Go. It needs a custom **development build**.
 
 ```bash
 npm install
-cp .env.example .env   # fill in your PC's LAN IP and the shared AUTH_TOKEN
+cp .env.example .env   # set EXPO_PUBLIC_SERVER_URL to your backend (LAN IP when testing)
 ```
 
 **Android** (buildable directly from Windows with Android Studio installed):

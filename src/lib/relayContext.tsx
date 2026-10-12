@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { MediaStream } from "react-native-webrtc";
-import { config } from "./config";
+import { loadAuth, saveAuth, clearAuth, toWebSocketUrl } from "./authStorage";
+import type { StoredAuth } from "./authStorage";
+import { api } from "./api";
 import { SignalingClient } from "./signalingClient";
 import { WebRtcSession } from "./webrtcSession";
 import { ActiveDownload } from "./fileDownloader";
@@ -21,6 +23,11 @@ export interface DownloadProgress {
 }
 
 interface RelayContextValue {
+  /** null = signed out; undefined = still reading secure storage. */
+  auth: StoredAuth | null | undefined;
+  signIn: (auth: StoredAuth) => Promise<void>;
+  signOut: () => Promise<void>;
+  refreshDevices: () => void;
   devices: PcSummary[];
   connectionState: ConnectionState;
   connectedDeviceId: string | null;
@@ -42,6 +49,7 @@ interface PendingList {
 }
 
 export function RelayProvider({ children }: { children: React.ReactNode }): React.ReactElement {
+  const [auth, setAuth] = useState<StoredAuth | null | undefined>(undefined);
   const [devices, setDevices] = useState<PcSummary[]>([]);
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle");
   const [connectedDeviceId, setConnectedDeviceId] = useState<string | null>(null);
@@ -59,14 +67,22 @@ export function RelayProvider({ children }: { children: React.ReactNode }): Reac
   } | null>(null);
 
   useEffect(() => {
+    void loadAuth().then(setAuth);
+  }, []);
+
+  useEffect(() => {
+    if (!auth) return;
     const signaling = new SignalingClient({
-      url: config.backendUrl,
-      token: config.authToken,
-      deviceId: config.deviceId,
-      name: "Phone",
+      url: toWebSocketUrl(auth.serverUrl),
+      sessionToken: auth.sessionToken,
     });
     signaling.on("devices", (pcs) => setDevices(pcs));
     signaling.on("error", (message) => setLastError(message));
+    signaling.on("unauthorized", () => {
+      void clearAuth();
+      setAuth(null);
+      setDevices([]);
+    });
     signaling.on("signal", (from, payload) => {
       if (sessionRef.current && from === connectedDeviceIdRef.current) {
         void sessionRef.current.handleIncomingSignal(payload);
@@ -79,10 +95,30 @@ export function RelayProvider({ children }: { children: React.ReactNode }): Reac
     return () => {
       clearInterval(interval);
       signaling.close();
+      signalingRef.current = null;
     };
-    // Intentionally runs once — signaling is a single long-lived connection.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth]);
+
+  const signIn = useCallback(async (next: StoredAuth) => {
+    await saveAuth(next);
+    setLastError(null);
+    setAuth(next);
   }, []);
+
+  const signOut = useCallback(async () => {
+    const current = auth;
+    sessionRef.current?.close();
+    sessionRef.current = null;
+    await clearAuth();
+    setAuth(null);
+    setDevices([]);
+    setConnectedDeviceId(null);
+    setRemoteStream(null);
+    // Revoke on the server too, so the token is useless even if copied.
+    if (current) await api.logout(current.serverUrl, current.sessionToken).catch(() => {});
+  }, [auth]);
+
+  const refreshDevices = useCallback(() => signalingRef.current?.requestDevices(), []);
 
   // Read inside the signaling 'signal' handler above without re-subscribing
   // every time the connected device changes.
@@ -209,6 +245,10 @@ export function RelayProvider({ children }: { children: React.ReactNode }): Reac
   }, []);
 
   const value: RelayContextValue = {
+    auth,
+    signIn,
+    signOut,
+    refreshDevices,
     devices,
     connectionState,
     connectedDeviceId,

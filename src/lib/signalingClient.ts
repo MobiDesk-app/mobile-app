@@ -7,10 +7,11 @@ const MAX_RECONNECT_DELAY_MS = 15_000;
 
 export interface SignalingClientOptions {
   url: string;
-  token: string;
-  deviceId: string;
-  name: string;
+  sessionToken: string;
 }
+
+/** Backend close code meaning "this sign-in is no longer valid". */
+const CLOSE_UNAUTHORIZED = 4003;
 
 interface SignalingClientEvents {
   authenticated: [];
@@ -18,6 +19,8 @@ interface SignalingClientEvents {
   signal: [from: string, payload: unknown];
   error: [message: string];
   disconnected: [];
+  /** Signed out elsewhere or session expired — show sign-in, don't retry. */
+  unauthorized: [];
 }
 
 /**
@@ -60,18 +63,16 @@ export class SignalingClient extends MiniEmitter<SignalingClientEvents> {
 
     ws.onopen = () => {
       this.reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS;
-      this.send({
-        type: "auth",
-        token: this.options.token,
-        deviceId: this.options.deviceId,
-        role: "app",
-        name: this.options.name,
-      });
+      this.send({ type: "auth", role: "app", sessionToken: this.options.sessionToken });
     };
 
     ws.onmessage = (event) => this.handleMessage(event.data);
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
+      if (event.code === CLOSE_UNAUTHORIZED) {
+        this.closedByCaller = true;
+        return void this.emit("unauthorized");
+      }
       this.emit("disconnected");
       if (!this.closedByCaller) this.scheduleReconnect();
     };

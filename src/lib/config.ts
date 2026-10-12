@@ -1,16 +1,5 @@
-function required(name: string, value: string | undefined): string {
-  if (!value) {
-    throw new Error(
-      `Missing ${name}. Copy .env.example to .env, fill it in, and restart the Metro dev server.`
-    );
-  }
-  return value;
-}
-
-export const config = {
-  backendUrl: required("EXPO_PUBLIC_BACKEND_URL", process.env.EXPO_PUBLIC_BACKEND_URL),
-  authToken: required("EXPO_PUBLIC_AUTH_TOKEN", process.env.EXPO_PUBLIC_AUTH_TOKEN),
-  // A stable id for this phone. Good enough for a single-user MVP; a real
-  // per-install id (e.g. via expo-application) is a follow-up.
-  deviceId: "phone-1",
-};
+// The server address is not a secret, so it's fine to bake it into the app.
+// (The old shared AUTH_TOKEN used to be baked in here too — anyone could
+// have extracted it from the app. Each sign-in now gets its own token.)
+// Users can still change the server from the sign-in screen.
+export const DEFAULT_SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL ?? "http://localhost:8080";
